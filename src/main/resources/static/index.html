@@ -123,7 +123,14 @@
     </template>
 
     <script>
-        const API_URL = "/livro";
+        const baseUrl = (() => {
+            const origin = window.location.origin;
+            if (!origin || origin === "null" || origin.startsWith("file:")) {
+                return "http://localhost:8080";
+            }
+            return origin.replace(/\/$/, "");
+        })();
+        const API_URL = `${baseUrl}/livro`;
         const tabelaLivros = document.querySelector("#tabela-livros tbody");
         const formLivro = document.getElementById("form-livro");
         const mensagem = document.getElementById("mensagem");
