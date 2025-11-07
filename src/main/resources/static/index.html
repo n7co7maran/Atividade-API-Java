@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Livros</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem auto;
+            max-width: 960px;
+        }
+        h1 {
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+            background: #f9f9f9;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="number"] {
+            margin-top: 0.25rem;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            background-color: #1976d2;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            justify-self: start;
+        }
+        button:hover {
+            background-color: #145ca3;
+        }
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .error {
+            color: #c62828;
+            margin-top: 1rem;
+        }
+        .success {
+            color: #2e7d32;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Catálogo de Livros</h1>
+
+    <section>
+        <h2>Livros cadastrados</h2>
+        <table id="tabela-livros">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Páginas</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="4" style="text-align: center;">Carregando...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Novo livro</h2>
+        <form id="form-livro">
+            <label>
+                Nome
+                <input type="text" id="nome" name="nome" required>
+            </label>
+            <label>
+                Páginas
+                <input type="number" id="paginas" name="paginas" min="1" required>
+            </label>
+            <button type="submit">Cadastrar</button>
+        </form>
+        <p id="mensagem" role="status"></p>
+    </section>
+
+    <template id="linha-template">
+        <tr>
+            <td class="col-id"></td>
+            <td class="col-nome"></td>
+            <td class="col-paginas"></td>
+            <td class="actions">
+                <button type="button" class="btn-editar">Editar</button>
+                <button type="button" class="btn-excluir">Excluir</button>
+            </td>
+        </tr>
+    </template>
+
+    <script>
+        const baseUrl = (() => {
+            const origin = window.location.origin;
+            if (!origin || origin === "null" || origin.startsWith("file:")) {
+                return "http://localhost:8080";
+            }
+            return origin.replace(/\/$/, "");
+        })();
+        const API_URL = `${baseUrl}/livro`;
+        const tabelaLivros = document.querySelector("#tabela-livros tbody");
+        const formLivro = document.getElementById("form-livro");
+        const mensagem = document.getElementById("mensagem");
+        const linhaTemplate = document.getElementById("linha-template");
+
+        async function listarLivros() {
+            tabelaLivros.innerHTML = `<tr><td colspan="4" style="text-align: center;">Carregando...</td></tr>`;
+            try {
+                const resposta = await fetch(API_URL);
+                if (!resposta.ok) throw new Error("Erro ao buscar livros");
+                const livros = await resposta.json();
+
+                if (!Array.isArray(livros) || livros.length === 0) {
+                    tabelaLivros.innerHTML = `<tr><td colspan="4" style="text-align: center;">Nenhum livro cadastrado.</td></tr>`;
+                    return;
+                }
+
+                tabelaLivros.innerHTML = "";
+                livros.forEach(adicionarLinhaLivro);
+            } catch (erro) {
+                tabelaLivros.innerHTML = `<tr><td colspan="4" class="error">${erro.message}</td></tr>`;
+            }
+        }
+
+        function adicionarLinhaLivro(livro) {
+            const linha = linhaTemplate.content.cloneNode(true);
+            linha.querySelector(".col-id").textContent = livro.id;
+            linha.querySelector(".col-nome").textContent = livro.nome;
+            linha.querySelector(".col-paginas").textContent = livro.paginas;
+
+            linha.querySelector(".btn-excluir").addEventListener("click", () => excluirLivro(livro.id));
+            linha.querySelector(".btn-editar").addEventListener("click", () => editarLivro(livro));
+
+            tabelaLivros.appendChild(linha);
+        }
+
+        formLivro.addEventListener("submit", async (evento) => {
+            evento.preventDefault();
+            const dados = {
+                nome: formLivro.nome.value.trim(),
+                paginas: Number(formLivro.paginas.value)
+            };
+
+            if (!dados.nome || !dados.paginas) {
+                exibirMensagem("Preencha todos os campos com valores válidos.", true);
+                return;
+            }
+
+            try {
+                const resposta = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dados)
+                });
+
+                if (!resposta.ok) throw new Error("Erro ao cadastrar livro");
+
+                formLivro.reset();
+                exibirMensagem("Livro cadastrado com sucesso!", false);
+                listarLivros();
+            } catch (erro) {
+                exibirMensagem(erro.message, true);
+            }
+        });
+
+        async function excluirLivro(id) {
+            if (!confirm("Deseja realmente excluir este livro?")) {
+                return;
+            }
+
+            try {
+                const resposta = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+                if (!resposta.ok) throw new Error("Erro ao excluir livro");
+                exibirMensagem("Livro removido com sucesso!", false);
+                listarLivros();
+            } catch (erro) {
+                exibirMensagem(erro.message, true);
+            }
+        }
+
+        function editarLivro(livro) {
+            const novoNome = prompt("Atualizar nome do livro:", livro.nome) ?? "";
+            const novasPaginas = prompt("Atualizar número de páginas:", livro.paginas);
+
+            const nomeTrim = novoNome.trim();
+            const paginasNumber = Number(novasPaginas);
+
+            if (!nomeTrim || !paginasNumber) {
+                exibirMensagem("Dados inválidos para atualização.", true);
+                return;
+            }
+
+            atualizarLivro(livro.id, { nome: nomeTrim, paginas: paginasNumber });
+        }
+
+        async function atualizarLivro(id, dados) {
+            try {
+                const resposta = await fetch(`${API_URL}/${id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dados)
+                });
+
+                if (!resposta.ok) throw new Error("Erro ao atualizar livro");
+
+                exibirMensagem("Livro atualizado com sucesso!", false);
+                listarLivros();
+            } catch (erro) {
+                exibirMensagem(erro.message, true);
+            }
+        }
+
+        function exibirMensagem(texto, isErro) {
+            mensagem.textContent = texto;
+            mensagem.className = isErro ? "error" : "success";
+        }
+
+        listarLivros();
+    </script>
+</body>
+</html>
