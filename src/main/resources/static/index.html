@@ -136,7 +136,7 @@
                 if (!resposta.ok) throw new Error("Erro ao buscar livros");
                 const livros = await resposta.json();
 
-                if (!livros.length) {
+                if (!Array.isArray(livros) || livros.length === 0) {
                     tabelaLivros.innerHTML = `<tr><td colspan="4" style="text-align: center;">Nenhum livro cadastrado.</td></tr>`;
                     return;
                 }
